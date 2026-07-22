@@ -1,0 +1,14 @@
+{
+  "hero": {
+    "title": "Titre principal",
+    "subtitle": "Sous-titre descriptif",
+    "cta": "Appeler maintenant"
+  },
+  "services": [
+    {
+      "id": "1",
+      "title": "Service 1",
+      "description": "Description du service"
+    }
+  ]
+}
