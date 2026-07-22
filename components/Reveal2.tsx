@@ -8,13 +8,14 @@ type RevealProps = {
   delay?: number;
 };
 
+// Le contenu est TOUJOURS rendu visible par défaut (SSR, no-JS, crawler,
+// JS qui plante...). L'animation "scan reveal" n'ajoute qu'un léger effet
+// d'entrée qui ne masque jamais complètement le contenu, et un garde-fou
+// (setTimeout) force l'affichage final même si l'IntersectionObserver ne
+// se déclenche jamais.
 export default function Reveal({ children, className = "", delay = 0 }: RevealProps) {
   const ref = useRef<HTMLDivElement>(null);
-  // Visible par défaut : le contenu ne doit jamais rester caché si le
-  // JavaScript ne s'exécute pas (erreur, navigateur sans JS, crawler...).
-  // On ne bascule en mode "masqué en attente d'animation" qu'après le
-  // montage, et seulement si l'élément est encore hors du champ de vision.
-  const [isVisible, setIsVisible] = useState(true);
+  const [hasEntered, setHasEntered] = useState(true);
 
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia(
@@ -28,33 +29,39 @@ export default function Reveal({ children, className = "", delay = 0 }: RevealPr
       element.getBoundingClientRect().top < window.innerHeight * 0.85;
     if (alreadyInView) return; // déjà visible à l'écran : pas d'animation, pas de flash
 
-    setIsVisible(false);
+    setHasEntered(false);
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          setIsVisible(true);
+          setHasEntered(true);
           observer.disconnect();
         }
       },
       { threshold: 0.15, rootMargin: "0px 0px -80px 0px" }
     );
-
     observer.observe(element);
-    return () => observer.disconnect();
+
+    // Garde-fou : si l'observateur ne se déclenche jamais (bug navigateur,
+    // scroll restauré différemment, erreur JS ailleurs...), on affiche
+    // quand même le contenu après 1s pour ne jamais rester bloqué caché.
+    const failSafe = setTimeout(() => setHasEntered(true), 1000);
+
+    return () => {
+      observer.disconnect();
+      clearTimeout(failSafe);
+    };
   }, []);
 
-  // Signature "scan reveal": the content is unmasked left-to-right like a
-  // technical drawing being traced out, instead of a simple fade/slide.
   return (
     <div
       ref={ref}
       className={`transition-all duration-700 ease-out ${
-        isVisible ? "opacity-100" : "opacity-0"
+        hasEntered ? "opacity-100" : "opacity-90"
       } ${className}`}
       style={{
         transitionDelay: `${delay}ms`,
-        clipPath: isVisible ? "inset(0 0% 0 0)" : "inset(0 100% 0 0)",
+        clipPath: hasEntered ? "inset(0 0% 0 0)" : "inset(0 6% 0 0)",
         transitionProperty: "opacity, clip-path",
       }}
     >
